@@ -1,8 +1,6 @@
 <!-- Banner -->
 <p align="center">
-  <img src="https://placehold.co/1200x250?text=WorqHat+Wizard" alt="WorqHat Wizard banner" />
-  <!-- Replace the URL above with your own image (e.g., docs/banner.png) -->
-  <!-- Example: <img src="docs/banner.png" alt="WorqHat Wizard banner" /> -->
+  <img src="https://assets.worqhat.com/announcements/wizard-cli-header.png" alt="WorqHat Wizard banner" />
 </p>
 
 # WorqHat Wizard
