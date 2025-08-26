@@ -156,6 +156,26 @@ worqhat-wizard --logout
 
 ---
 
+## Open Source and Contributions
+
+WorqHat Wizard is an open-source project. We welcome contributions from the community to help us build and improve it further.
+
+How you can contribute:
+
+* **Report bugs**: Open an Issue with clear steps to reproduce and environment details.
+* **Suggest features**: Share your ideas and use-cases in an Issue for discussion.
+* **Submit pull requests**: Fork the repo, create a feature branch, and open a PR with a concise description and rationale. Include tests and docs when applicable.
+
+Guidelines:
+
+* Keep PRs focused and small where possible.
+* Follow the existing code style and add/update documentation (e.g., `README.md` or `WORQHAT.md`) when needed.
+* Be respectful and collaborative in discussions and reviews.
+
+Thank you to everyone who takes the time to file issues, give feedback, or contribute code—your support helps make the wizard better for everyone.
+
+---
+
 ## License
 
 MIT
