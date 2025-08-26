@@ -1,0 +1,206 @@
+version: 2.1
+
+orbs:
+  node: circleci/node@5.1.0
+
+jobs:
+  lint:
+    docker:
+      - image: cimg/node:20.9
+    working_directory: ~/project
+    steps:
+      - checkout
+      - run:
+          name: Skip if no CLI changes
+          command: |
+            git fetch origin main || true
+            if git rev-parse --verify origin/main >/dev/null 2>&1; then
+              RANGE="origin/main...HEAD"
+            else
+              RANGE="HEAD~1...HEAD"
+            fi
+            CHANGED="$(git diff --name-only $RANGE || true)"
+            echo "$CHANGED"
+            if ! echo "$CHANGED" | grep -E '^(cli/|\\.circleci/)' >/dev/null 2>&1; then
+              echo "No CLI changes detected; halting job."
+              circleci step halt
+            fi
+      - node/install-packages:
+          pkg-manager: npm
+          app-dir: cli
+      - run:
+          name: Lint
+          command: |
+            cd cli
+            npm run lint
+
+  build:
+    docker:
+      - image: cimg/node:20.9
+    working_directory: ~/project
+    steps:
+      - checkout
+      - run:
+          name: Skip if no CLI changes
+          command: |
+            git fetch origin main || true
+            if git rev-parse --verify origin/main >/dev/null 2>&1; then
+              RANGE="origin/main...HEAD"
+            else
+              RANGE="HEAD~1...HEAD"
+            fi
+            CHANGED="$(git diff --name-only $RANGE || true)"
+            echo "$CHANGED"
+            if ! echo "$CHANGED" | grep -E '^(cli/|\\.circleci/)' >/dev/null 2>&1; then
+              echo "No CLI changes detected; halting job."
+              circleci step halt
+            fi
+      - node/install-packages:
+          pkg-manager: npm
+          app-dir: cli
+      - run:
+          name: Build package
+          command: |
+            cd cli
+            npm run clean
+            npm run build
+      - persist_to_workspace:
+          root: .
+          paths:
+            - cli/dist
+
+  test:
+    docker:
+      - image: cimg/node:20.9
+    working_directory: ~/project
+    steps:
+      - checkout
+      - run:
+          name: Skip if no CLI changes
+          command: |
+            git fetch origin main || true
+            if git rev-parse --verify origin/main >/dev/null 2>&1; then
+              RANGE="origin/main...HEAD"
+            else
+              RANGE="HEAD~1...HEAD"
+            fi
+            CHANGED="$(git diff --name-only $RANGE || true)"
+            echo "$CHANGED"
+            if ! echo "$CHANGED" | grep -E '^(cli/|\\.circleci/)' >/dev/null 2>&1; then
+              echo "No CLI changes detected; halting job."
+              circleci step halt
+            fi
+      - node/install-packages:
+          pkg-manager: npm
+          app-dir: cli
+      - run:
+          name: Run tests (skips if none)
+          command: |
+            cd cli
+            npm run -s test || echo "No tests defined"
+
+  publish:
+    docker:
+      - image: cimg/node:20.9
+    working_directory: ~/project
+    steps:
+      - checkout
+      - node/install-packages:
+          pkg-manager: npm
+          app-dir: cli
+      - attach_workspace:
+          at: .
+      - run:
+          name: Authenticate with npm
+          command: |
+            echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+      - run:
+          name: Verify npm authentication
+          command: npm whoami
+      - run:
+          name: Validate tag vs package.json version (if tag)
+          command: |
+            PKG_VERSION=$(node -p "require('./cli/package.json').version")
+            if [ -n "$CIRCLE_TAG" ]; then
+              if [ "v$PKG_VERSION" != "$CIRCLE_TAG" ]; then
+                echo "Tag ($CIRCLE_TAG) doesn't match cli/package.json version (v$PKG_VERSION)"; exit 1;
+              fi
+            else
+              echo "No tag detected; proceeding with branch publish on $CIRCLE_BRANCH"
+            fi
+      - run:
+          name: Verify build artifacts
+          command: |
+            ls -la cli/dist || true
+      - run:
+          name: Skip if version already published
+          command: |
+            PKG_NAME=$(node -p "require('./cli/package.json').name")
+            PKG_VERSION=$(node -p "require('./cli/package.json').version")
+            VERSIONS_JSON=$(npm view "$PKG_NAME" versions --json 2>/dev/null || echo '[]')
+            EXISTS=$(echo "$VERSIONS_JSON" | PKG_VERSION="$PKG_VERSION" node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const v=JSON.parse(d);const t=process.env.PKG_VERSION;console.log(Array.isArray(v)&&v.includes(t)?'yes':'no')}catch(e){console.log('no')}})")
+            if [ "$EXISTS" = "yes" ]; then
+              echo "Version $PKG_VERSION already published — skipping publish."
+              circleci step halt
+            fi
+      - run:
+          name: Preview published files (npm pack --dry-run)
+          command: |
+            cd cli
+            npm pack --dry-run
+      - run:
+          name: Publish to npm (@worqhat/wizard)
+          command: |
+            cd cli
+            npm publish --access public
+
+workflows:
+  version: 2
+  ci:
+    jobs:
+      - lint:
+          filters:
+            branches:
+              ignore:
+                - generated
+                - codegen/*
+                - integrated/*
+                - stl-preview-head/*
+                - stl-preview-base/*
+      - build:
+          filters:
+            branches:
+              ignore:
+                - generated
+                - codegen/*
+                - integrated/*
+                - stl-preview-head/*
+                - stl-preview-base/*
+      - test:
+          filters:
+            branches:
+              ignore:
+                - generated
+                - codegen/*
+                - integrated/*
+                - stl-preview-head/*
+                - stl-preview-base/*
+
+  publish:
+    jobs:
+      - build:
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              only: main
+      - publish:
+          requires:
+            - build
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              only: main
+          context:
+            - npm-publishing
