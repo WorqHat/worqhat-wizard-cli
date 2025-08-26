@@ -27,11 +27,10 @@ jobs:
             fi
       - node/install-packages:
           pkg-manager: npm
-          app-dir: cli
+          app-dir: .
       - run:
           name: Lint
           command: |
-            cd cli
             npm run lint
 
   build:
@@ -57,17 +56,16 @@ jobs:
             fi
       - node/install-packages:
           pkg-manager: npm
-          app-dir: cli
+          app-dir: .
       - run:
           name: Build package
           command: |
-            cd cli
             npm run clean
             npm run build
       - persist_to_workspace:
           root: .
           paths:
-            - cli/dist
+            - dist
 
   test:
     docker:
@@ -92,11 +90,10 @@ jobs:
             fi
       - node/install-packages:
           pkg-manager: npm
-          app-dir: cli
+          app-dir: .
       - run:
           name: Run tests (skips if none)
           command: |
-            cd cli
             npm run -s test || echo "No tests defined"
 
   publish:
@@ -107,7 +104,7 @@ jobs:
       - checkout
       - node/install-packages:
           pkg-manager: npm
-          app-dir: cli
+          app-dir: .
       - attach_workspace:
           at: .
       - run:
@@ -120,10 +117,10 @@ jobs:
       - run:
           name: Validate tag vs package.json version (if tag)
           command: |
-            PKG_VERSION=$(node -p "require('./cli/package.json').version")
+            PKG_VERSION=$(node -p "require('./package.json').version")
             if [ -n "$CIRCLE_TAG" ]; then
               if [ "v$PKG_VERSION" != "$CIRCLE_TAG" ]; then
-                echo "Tag ($CIRCLE_TAG) doesn't match cli/package.json version (v$PKG_VERSION)"; exit 1;
+                echo "Tag ($CIRCLE_TAG) doesn't match package.json version (v$PKG_VERSION)"; exit 1;
               fi
             else
               echo "No tag detected; proceeding with branch publish on $CIRCLE_BRANCH"
@@ -131,12 +128,12 @@ jobs:
       - run:
           name: Verify build artifacts
           command: |
-            ls -la cli/dist || true
+            ls -la dist || true
       - run:
           name: Skip if version already published
           command: |
-            PKG_NAME=$(node -p "require('./cli/package.json').name")
-            PKG_VERSION=$(node -p "require('./cli/package.json').version")
+            PKG_NAME=$(node -p "require('./package.json').name")
+            PKG_VERSION=$(node -p "require('./package.json').version")
             VERSIONS_JSON=$(npm view "$PKG_NAME" versions --json 2>/dev/null || echo '[]')
             EXISTS=$(echo "$VERSIONS_JSON" | PKG_VERSION="$PKG_VERSION" node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const v=JSON.parse(d);const t=process.env.PKG_VERSION;console.log(Array.isArray(v)&&v.includes(t)?'yes':'no')}catch(e){console.log('no')}})")
             if [ "$EXISTS" = "yes" ]; then
@@ -146,12 +143,10 @@ jobs:
       - run:
           name: Preview published files (npm pack --dry-run)
           command: |
-            cd cli
             npm pack --dry-run
       - run:
           name: Publish to npm (@worqhat/wizard)
           command: |
-            cd cli
             npm publish --access public
 
 workflows:
