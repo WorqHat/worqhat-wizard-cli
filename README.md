@@ -1,8 +1,15 @@
+<!-- Banner -->
+<p align="center">
+  <img src="https://placehold.co/1200x250?text=WorqHat+Wizard" alt="WorqHat Wizard banner" />
+  <!-- Replace the URL above with your own image (e.g., docs/banner.png) -->
+  <!-- Example: <img src="docs/banner.png" alt="WorqHat Wizard banner" /> -->
+</p>
+
 # WorqHat Wizard
 
 A zero-setup CLI that scans your project, scaffolds WorqHat integration files, installs needed packages, writes usage docs, and optionally commits and opens a pull request for you.
 
-⚠️ Experimental: This wizard is still in an experimental phase. If you have any feedback, please email sagnik@worqhat.com.
+> ⚠️ **Experimental:** This wizard is still in an experimental phase. If you have any feedback, please drop an email to sagnik [at] worqhat [dot] com.
 
 WorqHat wizard ✨
 The WorqHat wizard helps you quickly add WorqHat to your project using AI.
