@@ -489,7 +489,7 @@ printWelcome()
 						if (!docsBody.ok || typeof docsBody.docs !== 'string') {
 							throw new Error('Invalid response from docs generation')
 						}
-						fs.appendFileSync(manifest, docsBody.docs + '\n')
+						fs.appendFileSync(manifest, `${docsBody.docs}\n`)
 						spin.succeed('Docs appended to WORQHAT.md')
 					} catch (err) {
 						spin.fail(`Failed to generate docs for ${t.label}`)
@@ -505,12 +505,12 @@ printWelcome()
 					]
 					const width = Math.max(...msgLines.map((l) => l.length)) + 4
 					const hr = '-'.repeat(width)
-					console.log('\n' + chalk.cyan(hr))
+					console.log(`\n${chalk.cyan(hr)}`)
 					for (const l of msgLines) {
 						const padded = l.padEnd(width - 4)
 						console.log(chalk.cyan(`- ${padded} -`))
 					}
-					console.log(chalk.cyan(hr) + '\n')
+					console.log(`${chalk.cyan(hr)}\n`)
 				} catch (_) {
 					// no-op if printing fails
 				}
