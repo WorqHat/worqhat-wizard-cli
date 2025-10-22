@@ -19,6 +19,9 @@ import { fetchEnvironments, fetchTables } from './tables'
 import { fetchAndSelectWorkflows } from './workflows'
 import { spawnSync } from 'node:child_process'
 
+		// const baseUrl = 'https://cli.worqhat.app'
+		const baseUrl = 'http://localhost:3000'
+
 // Collect up to 2 sample files in the chosen language to guide config generation
 async function findLanguageSamples(
 	cwd: string,
@@ -204,7 +207,7 @@ printWelcome()
 	let selectedTableNames: string[] = []
 	if (choices.database) {
 		// First, fetch available environments
-		const { environments: availableEnvironments } = await fetchEnvironments(apiKey)
+		const { environments: availableEnvironments } = await fetchEnvironments(apiKey, baseUrl)
 		if (!availableEnvironments.length) {
 			console.log(chalk.yellow('No environments found or unable to fetch.'))
 		} else {
@@ -239,7 +242,7 @@ printWelcome()
 				fs.appendFileSync(manifest, envSection)
 
 				// Now fetch tables from selected environments
-				const { tables, tableEnvironmentMap } = await fetchTables(apiKey, selectedEnvs)
+				const { tables, tableEnvironmentMap } = await fetchTables(apiKey, selectedEnvs, baseUrl)
 				if (!tables.length) {
 					console.log(chalk.yellow('No tables found in selected environments.'))
 				} else {
@@ -289,7 +292,6 @@ printWelcome()
 	}
 
 	try {
-		const baseUrl = 'https://cli.worqhat.app'
 		const pref = ['typescript', 'javascript', 'python', 'ruby']
 		const lower = langs.map((l) => l.toLowerCase())
 		const chosen = pref.find((p) => lower.includes(p)) || 'javascript'

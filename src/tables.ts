@@ -21,16 +21,34 @@ export async function fetchEnvironments(
 ): Promise<{ organizationId?: string; environments: string[] }> {
 	const spin = createSpinner('Fetching available environments...')
 	spin.start()
+	const url = `${baseUrl}/postgres/environments`
 	try {
-		const res = await fetch(`${baseUrl}/postgres/environments`, {
+		console.log(chalk.dim(`  → Requesting: GET ${url}`))
+		const res = await fetch(url, {
 			headers: { Authorization: `Bearer ${apiKey}` },
 		})
+		console.log(chalk.dim(`  → Response: ${res.status} ${res.statusText}`))
+		
 		if (!res.ok) {
 			spin.fail('Failed to fetch environments')
-			console.error(chalk.red(`HTTP ${res.status}: ${res.statusText}`))
+			console.error(chalk.red('\n  Error Details:'))
+			console.error(chalk.red(`    URL: ${url}`))
+			console.error(chalk.red(`    Status: ${res.status} ${res.statusText}`))
+			console.error(chalk.red(`    Headers: ${JSON.stringify(Object.fromEntries(res.headers.entries()), null, 2)}`))
+			
+			// Try to read the response body for more details
+			try {
+				const text = await res.text()
+				if (text) {
+					console.error(chalk.red(`    Response Body: ${text}`))
+				}
+			} catch {
+				// Ignore if we can't read the body
+			}
 			return { environments: [] }
 		}
 		const body = (await res.json()) as PostgresEnvironmentsResponse
+		console.log(chalk.dim(`  → Body: ${JSON.stringify(body, null, 2)}`))
 		const orgId = body.organizationId
 		const environments = body.environments || []
 		spin.succeed(`Found ${environments.length} environment(s)`)
@@ -40,7 +58,12 @@ export async function fetchEnvironments(
 		return { organizationId: orgId, environments }
 	} catch (e) {
 		spin.fail('Error fetching environments')
-		console.error(chalk.red(String(e)))
+		console.error(chalk.red('\n  Error Details:'))
+		console.error(chalk.red(`    URL: ${url}`))
+		console.error(chalk.red(`    Error: ${String(e)}`))
+		if (e instanceof Error && e.stack) {
+			console.error(chalk.red(`    Stack: ${e.stack}`))
+		}
 		return { environments: [] }
 	}
 }
@@ -52,8 +75,11 @@ export async function fetchTables(
 ): Promise<{ organizationId?: string; environments?: string[]; tables: string[]; tableEnvironmentMap: Map<string, string[]> }> {
 	const spin = createSpinner('Fetching tables...')
 	spin.start()
+	const url = `${baseUrl}/postgres/tables`
 	try {
-		const res = await fetch(`${baseUrl}/postgres/tables`, {
+		console.log(chalk.dim(`  → Requesting: POST ${url}`))
+		console.log(chalk.dim(`  → Body: ${JSON.stringify({ environments: selectedEnvironments }, null, 2)}`))
+		const res = await fetch(url, {
 			method: 'POST',
 			headers: {
 				Authorization: `Bearer ${apiKey}`,
@@ -61,12 +87,28 @@ export async function fetchTables(
 			},
 			body: JSON.stringify({ environments: selectedEnvironments }),
 		})
+		console.log(chalk.dim(`  → Response: ${res.status} ${res.statusText}`))
+		
 		if (!res.ok) {
 			spin.fail('Failed to fetch tables')
-			console.error(chalk.red(`HTTP ${res.status}: ${res.statusText}`))
+			console.error(chalk.red('\n  Error Details:'))
+			console.error(chalk.red(`    URL: ${url}`))
+			console.error(chalk.red(`    Status: ${res.status} ${res.statusText}`))
+			console.error(chalk.red(`    Headers: ${JSON.stringify(Object.fromEntries(res.headers.entries()), null, 2)}`))
+			
+			// Try to read the response body for more details
+			try {
+				const text = await res.text()
+				if (text) {
+					console.error(chalk.red(`    Response Body: ${text}`))
+				}
+			} catch {
+				// Ignore if we can't read the body
+			}
 			return { tables: [], tableEnvironmentMap: new Map() }
 		}
 		const body = (await res.json()) as PostgresTablesResponse
+		console.log(chalk.dim(`  → Body: ${JSON.stringify(body, null, 2)}`))
 		const orgId = body.organizationId
 		const environments = body.environments || []
 		const tableData = body.tables || []
@@ -95,7 +137,12 @@ export async function fetchTables(
 		return { organizationId: orgId, environments, tables, tableEnvironmentMap }
 	} catch (e) {
 		spin.fail('Error fetching tables')
-		console.error(chalk.red(String(e)))
+		console.error(chalk.red('\n  Error Details:'))
+		console.error(chalk.red(`    URL: ${url}`))
+		console.error(chalk.red(`    Error: ${String(e)}`))
+		if (e instanceof Error && e.stack) {
+			console.error(chalk.red(`    Stack: ${e.stack}`))
+		}
 		return { tables: [], tableEnvironmentMap: new Map() }
 	}
 }
