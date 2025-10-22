@@ -552,6 +552,109 @@ printWelcome()
 				console.log(chalk.yellow('Storage path not proposed; skipping storage generation.'))
 			}
 
+			// Validate and fix all generated files
+			try {
+				const validationSpin = createSpinner('Validating generated files for errors...')
+				validationSpin.start()
+
+				const filesToValidate: Array<{ path: string; content: string; language: string }> = []
+
+				// Collect all generated files
+				const configRel = (scaffoldPaths || []).find((p) =>
+					/(^|\/)worqhat\/config\.[a-z]+$/i.test(p),
+				)
+				const dbRel = (scaffoldPaths || []).find((p) => /(^|\/)worqhat\/db\.[a-z]+$/i.test(p))
+				const workflowsRel = (scaffoldPaths || []).find((p) =>
+					/(^|\/)worqhat\/workflows\.[a-z]+$/i.test(p),
+				)
+				const storageRel = (scaffoldPaths || []).find((p) =>
+					/(^|\/)worqhat\/storage\.[a-z]+$/i.test(p),
+				)
+
+				const filePaths = [configRel, dbRel, workflowsRel, storageRel].filter(
+					(p): p is string => !!p,
+				)
+
+				for (const relPath of filePaths) {
+					const fullPath = path.join(cwd, relPath)
+					if (fs.existsSync(fullPath)) {
+						const content = fs.readFileSync(fullPath, 'utf8')
+						filesToValidate.push({
+							path: relPath,
+							content,
+							language: language,
+						})
+					}
+				}
+
+				if (filesToValidate.length > 0) {
+					const validateRes = await fetch(`${baseUrl}/validate-and-fix`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json', 'x-worqhat-api-key': apiKey },
+						body: JSON.stringify({ files: filesToValidate }),
+					})
+
+					if (!validateRes.ok) throw new Error(`HTTP ${validateRes.status}`)
+
+					const validateBody = (await validateRes.json()) as {
+						ok: boolean
+						results?: Array<{
+							path: string
+							fixedContent: string
+							errors: Array<{ message: string }>
+							wasFixed: boolean
+						}>
+						summary?: {
+							total: number
+							fixed: number
+							withErrors: number
+							clean: number
+						}
+					}
+
+					if (!validateBody.ok || !validateBody.results) {
+						throw new Error('Invalid response from validation')
+					}
+
+					// Write fixed files back
+					let fixedCount = 0
+					for (const result of validateBody.results) {
+						if (result.wasFixed) {
+							const fullPath = path.join(cwd, result.path)
+							fs.writeFileSync(fullPath, result.fixedContent, 'utf8')
+							fixedCount++
+						}
+					}
+
+					if (validateBody.summary) {
+						const { clean, fixed, withErrors } = validateBody.summary
+						if (clean === validateBody.summary.total) {
+							validationSpin.succeed('All files validated successfully - no errors found!')
+						} else if (fixed > 0) {
+							validationSpin.succeed(
+								`Validation complete: ${fixed} file(s) auto-fixed, ${withErrors} file(s) still have errors`,
+							)
+							if (withErrors > 0) {
+								console.log(
+									chalk.yellow(
+										'⚠️  Some files still have errors. Check the generated code manually.',
+									),
+								)
+							}
+						} else {
+							validationSpin.fail(`Validation found ${withErrors} file(s) with errors`)
+						}
+					} else {
+						validationSpin.succeed('Validation complete')
+					}
+				} else {
+					validationSpin.succeed('No files to validate')
+				}
+			} catch (err) {
+				console.log(chalk.yellow('⚠️  Validation step failed, continuing...'))
+				console.error(err)
+			}
+
 			// After generating all files, produce documentation for each created file
 			try {
 				const targets: Array<{ label: string; relPath: string }> = []
