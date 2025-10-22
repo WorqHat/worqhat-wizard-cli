@@ -20,8 +20,8 @@ import { fetchAndSelectWorkflows } from './workflows'
 import { generateStorage } from './storage'
 import { spawnSync } from 'node:child_process'
 
-		// const baseUrl = 'https://cli.worqhat.app'
-		const baseUrl = 'http://localhost:3000'
+		const baseUrl = 'https://cli.worqhat.app'
+		// const baseUrl = 'http://localhost:3000'
 
 // Collect up to 2 sample files in the chosen language to guide config generation
 async function findLanguageSamples(
