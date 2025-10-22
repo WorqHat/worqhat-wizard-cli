@@ -1,6 +1,6 @@
 {
 	"name": "@worqhat/wizard",
-	"version": "1.4.0",
+	"version": "1.4.1",
 	"description": "The WorqHat wizard helps you to configure your project",
 	"private": false,
 	"license": "MIT",
