@@ -311,6 +311,7 @@ printWelcome()
 				currentTree: tree,
 				selectedWorkflows: selectedWorkflowNames,
 				selectedTables: selectedTableNames,
+				hasStorage: choices.storage,
 			}),
 		})
 		if (!res.ok) throw new Error(`HTTP ${res.status}`)
