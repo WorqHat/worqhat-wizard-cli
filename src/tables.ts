@@ -23,11 +23,11 @@ export async function fetchEnvironments(
 	spin.start()
 	const url = `${baseUrl}/postgres/environments`
 	try {
-		console.log(chalk.dim(`  → Requesting: GET ${url}`))
+		// console.log(chalk.dim(`  → Requesting: GET ${url}`))
 		const res = await fetch(url, {
 			headers: { Authorization: `Bearer ${apiKey}` },
 		})
-		console.log(chalk.dim(`  → Response: ${res.status} ${res.statusText}`))
+		// console.log(chalk.dim(`  → Response: ${res.status} ${res.statusText}`))
 		
 		if (!res.ok) {
 			spin.fail('Failed to fetch environments')
@@ -48,7 +48,7 @@ export async function fetchEnvironments(
 			return { environments: [] }
 		}
 		const body = (await res.json()) as PostgresEnvironmentsResponse
-		console.log(chalk.dim(`  → Body: ${JSON.stringify(body, null, 2)}`))
+		// console.log(chalk.dim(`  → Body: ${JSON.stringify(body, null, 2)}`))
 		const orgId = body.organizationId
 		const environments = body.environments || []
 		spin.succeed(`Found ${environments.length} environment(s)`)
@@ -77,8 +77,8 @@ export async function fetchTables(
 	spin.start()
 	const url = `${baseUrl}/postgres/tables`
 	try {
-		console.log(chalk.dim(`  → Requesting: POST ${url}`))
-		console.log(chalk.dim(`  → Body: ${JSON.stringify({ environments: selectedEnvironments }, null, 2)}`))
+		// console.log(chalk.dim(`  → Requesting: POST ${url}`))
+		// console.log(chalk.dim(`  → Body: ${JSON.stringify({ environments: selectedEnvironments }, null, 2)}`))
 		const res = await fetch(url, {
 			method: 'POST',
 			headers: {
@@ -87,7 +87,7 @@ export async function fetchTables(
 			},
 			body: JSON.stringify({ environments: selectedEnvironments }),
 		})
-		console.log(chalk.dim(`  → Response: ${res.status} ${res.statusText}`))
+		// console.log(chalk.dim(`  → Response: ${res.status} ${res.statusText}`))
 		
 		if (!res.ok) {
 			spin.fail('Failed to fetch tables')
@@ -108,7 +108,7 @@ export async function fetchTables(
 			return { tables: [], tableEnvironmentMap: new Map() }
 		}
 		const body = (await res.json()) as PostgresTablesResponse
-		console.log(chalk.dim(`  → Body: ${JSON.stringify(body, null, 2)}`))
+		// console.log(chalk.dim(`  → Body: ${JSON.stringify(body, null, 2)}`))
 		const orgId = body.organizationId
 		const environments = body.environments || []
 		const tableData = body.tables || []

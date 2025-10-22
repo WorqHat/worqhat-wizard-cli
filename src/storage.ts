@@ -19,12 +19,12 @@ export async function generateStorage(
 	spin.start()
 	const url = `${baseUrl}/scaffold/storage`
 	try {
-		console.log(chalk.dim(`  → Requesting: POST ${url}`))
-		console.log(
-			chalk.dim(
-				`  → Body: ${JSON.stringify({ language, targetPath, configFileCode: `${configFileCode.substring(0, 100)}...` }, null, 2)}`,
-			),
-		)
+		// console.log(chalk.dim(`  → Requesting: POST ${url}`))
+		// console.log(
+		// 	chalk.dim(
+		// 		`  → Body: ${JSON.stringify({ language, targetPath, configFileCode: `${configFileCode.substring(0, 100)}...` }, null, 2)}`,
+		// 	),
+		// )
 		const res = await fetch(url, {
 			method: 'POST',
 			headers: {
@@ -37,7 +37,7 @@ export async function generateStorage(
 				configFileCode,
 			}),
 		})
-		console.log(chalk.dim(`  → Response: ${res.status} ${res.statusText}`))
+		// console.log(chalk.dim(`  → Response: ${res.status} ${res.statusText}`))
 
 		if (!res.ok) {
 			spin.fail('Failed to generate storage helpers')
@@ -63,7 +63,7 @@ export async function generateStorage(
 		}
 
 		const body = (await res.json()) as StorageResponse
-		console.log(chalk.dim(`  → Body: ${JSON.stringify(body, null, 2)}`))
+		// console.log(chalk.dim(`  → Body: ${JSON.stringify(body, null, 2)}`))
 
 		if (!body.ok || !body.path || typeof body.code !== 'string') {
 			spin.fail('Invalid response from storage generation')
