@@ -17,6 +17,7 @@ import detectProject, { type DetectResult } from './project-detection'
 import createSpinner from './spinner'
 import { fetchEnvironments, fetchTables } from './tables'
 import { fetchAndSelectWorkflows } from './workflows'
+import { generateStorage } from './storage'
 import { spawnSync } from 'node:child_process'
 
 		// const baseUrl = 'https://cli.worqhat.app'
@@ -202,6 +203,11 @@ printWelcome()
 				.filter((w) => selectedIds.includes(w.id))
 				.map((w) => ({ id: w.id, name: w.name }))
 		}
+	}
+
+	// Storage is selected but doesn't need user selection (only one storage helper)
+	if (choices.storage) {
+		console.log(chalk.green('✔ Storage helpers will be generated'))
 	}
 
 	let selectedTableNames: string[] = []
@@ -508,9 +514,6 @@ printWelcome()
 			)
 			if (choices.storage && storagePath) {
 				try {
-					const storageSpin = createSpinner('Generating WorqHat storage helpers...')
-					storageSpin.start()
-
 					// Read the generated config file to pass as reference
 					let configFileCode = ''
 					try {
@@ -527,32 +530,24 @@ printWelcome()
 						// Ignore config read errors
 					}
 
-					const storageRes = await fetch(`${baseUrl}/scaffold/storage`, {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json', 'x-worqhat-api-key': apiKey },
-						body: JSON.stringify({
-							language: language,
-							targetPath: storagePath,
-							configFileCode: configFileCode,
-						}),
-					})
-					if (!storageRes.ok) throw new Error(`HTTP ${storageRes.status}`)
-					const storageBody = (await storageRes.json()) as {
-						ok: boolean
-						path?: string
-						code?: string
-					}
-					if (!storageBody.ok || !storageBody.path || typeof storageBody.code !== 'string') {
+					const storageResult = await generateStorage(
+						apiKey,
+						language,
+						storagePath,
+						configFileCode,
+						baseUrl,
+					)
+
+					if (storageResult.ok && storageResult.path && storageResult.code) {
+						const full = path.join(cwd, storageResult.path)
+						fs.writeFileSync(full, storageResult.code, 'utf8')
+					} else {
 						throw new Error('Invalid response from storage generation')
 					}
-
-					const full = path.join(cwd, storageBody.path)
-					fs.writeFileSync(full, storageBody.code, 'utf8')
-					storageSpin.succeed(`Storage helpers generated at ${storageBody.path}`)
 				} catch (err) {
 					console.error(chalk.red('Storage generation failed:'), err)
 				}
-			} else {
+			} else if (choices.storage) {
 				console.log(chalk.yellow('Storage path not proposed; skipping storage generation.'))
 			}
 
