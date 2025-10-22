@@ -15,7 +15,7 @@ import { promptInstallOptions } from './install-options'
 import { type Language, installPackagesForLanguage } from './package-install'
 import detectProject, { type DetectResult } from './project-detection'
 import createSpinner from './spinner'
-import { fetchTables } from './tables'
+import { fetchEnvironments, fetchTables } from './tables'
 import { fetchAndSelectWorkflows } from './workflows'
 import { spawnSync } from 'node:child_process'
 
@@ -203,39 +203,87 @@ printWelcome()
 
 	let selectedTableNames: string[] = []
 	if (choices.database) {
-		const { tables } = await fetchTables(apiKey)
-		if (!tables.length) {
-			console.log(chalk.yellow('No tables found or unable to fetch.'))
+		// First, fetch available environments
+		const { environments: availableEnvironments } = await fetchEnvironments(apiKey)
+		if (!availableEnvironments.length) {
+			console.log(chalk.yellow('No environments found or unable to fetch.'))
 		} else {
-			console.log(chalk.green(` Found ${tables.length} table(s).`))
+			console.log(chalk.green(` Found ${availableEnvironments.length} environment(s).`))
 			console.log('')
-			console.log(chalk.bold('Select tables to use'))
+			console.log(chalk.bold('Select environments to fetch tables from'))
 			console.log(
 				chalk.dim('Use ↑/↓ to move, Space to select/deselect, A to toggle all, Enter to confirm.'),
 			)
-			let selected: string[] = []
+			let selectedEnvs: string[] = []
 			try {
-				const ans = await prompt<{ tables: string[] }>([
+				const ans = await prompt<{ environments: string[] }>([
 					{
 						type: 'multiselect',
-						name: 'tables',
-						message: 'Tables',
-						choices: tables.map((t) => ({ name: t, message: t })),
+						name: 'environments',
+						message: 'Environments',
+						choices: availableEnvironments.map((env) => ({ name: env, message: env })),
 					},
 				])
-				selected = ans.tables || []
+				selectedEnvs = ans.environments || []
 			} catch {
-				selected = []
+				selectedEnvs = []
 			}
 
-			if (selected.length) {
-				const lines = selected.map((t) => `- ${t}`).join('\n')
-				const section = `\n## Selected Tables\n\n${lines}\n`
-				fs.appendFileSync(manifest, section)
-				console.log(chalk.green('✔ Updated WORQHAT.md with selected tables.'))
-				selectedTableNames = selected
+			if (!selectedEnvs.length) {
+				console.log(chalk.yellow('No environments selected. Skipping table selection.'))
 			} else {
-				console.log(chalk.yellow('No tables selected.'))
+				console.log(chalk.green(`✔ Selected environment(s): ${selectedEnvs.join(', ')}`))
+
+				// Append selected environments to WORQHAT.md
+				const envSection = `\n## Selected Environments\n\n${selectedEnvs.map((e) => `- ${e}`).join('\n')}\n`
+				fs.appendFileSync(manifest, envSection)
+
+				// Now fetch tables from selected environments
+				const { tables, tableEnvironmentMap } = await fetchTables(apiKey, selectedEnvs)
+				if (!tables.length) {
+					console.log(chalk.yellow('No tables found in selected environments.'))
+				} else {
+					console.log(chalk.green(` Found ${tables.length} table(s).`))
+					console.log('')
+					console.log(chalk.bold('Select tables to use'))
+					console.log(
+						chalk.dim('Use ↑/↓ to move, Space to select/deselect, A to toggle all, Enter to confirm.'),
+					)
+					let selected: string[] = []
+					try {
+						const ans = await prompt<{ tables: string[] }>([
+							{
+								type: 'multiselect',
+								name: 'tables',
+								message: 'Tables',
+								choices: tables.map((t) => {
+									const envs = tableEnvironmentMap.get(t) || []
+									const envLabel = envs.length > 0 ? ` (${envs.join(', ')})` : ''
+									return { name: t, message: `${t}${envLabel}` }
+								}),
+							},
+						])
+						selected = ans.tables || []
+					} catch {
+						selected = []
+					}
+
+					if (selected.length) {
+						const lines = selected
+							.map((t) => {
+								const envs = tableEnvironmentMap.get(t) || []
+								const envLabel = envs.length > 0 ? ` (${envs.join(', ')})` : ''
+								return `- ${t}${envLabel}`
+							})
+							.join('\n')
+						const section = `\n## Selected Tables\n\n${lines}\n`
+						fs.appendFileSync(manifest, section)
+						console.log(chalk.green('✔ Updated WORQHAT.md with selected tables.'))
+						selectedTableNames = selected
+					} else {
+						console.log(chalk.yellow('No tables selected.'))
+					}
+				}
 			}
 		}
 	}
