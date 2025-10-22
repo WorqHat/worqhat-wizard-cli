@@ -21,6 +21,7 @@ export async function installPackagesForLanguage(opts: {
 	language: Language
 	hasWorkflows: boolean
 	hasDatabase: boolean
+	hasStorage: boolean
 	forceInstall?: boolean
 }) {
 	const { cwd, language, forceInstall } = opts

@@ -4,6 +4,7 @@ import { prompt } from 'enquirer'
 export type InstallChoices = {
 	workflows: boolean
 	database: boolean
+	storage: boolean
 }
 
 export async function promptInstallOptions(): Promise<InstallChoices> {
@@ -22,6 +23,7 @@ export async function promptInstallOptions(): Promise<InstallChoices> {
 				choices: [
 					{ name: 'workflows', message: 'Workflows' },
 					{ name: 'database', message: 'Database' },
+					{ name: 'storage', message: 'Storage' },
 				],
 			},
 		])
@@ -33,5 +35,6 @@ export async function promptInstallOptions(): Promise<InstallChoices> {
 	return {
 		workflows: selected.includes('workflows'),
 		database: selected.includes('database'),
+		storage: selected.includes('storage'),
 	}
 }

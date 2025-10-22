@@ -175,6 +175,7 @@ printWelcome()
 	const parts: string[] = []
 	if (choices.workflows) parts.push('Workflows')
 	if (choices.database) parts.push('Database')
+	if (choices.storage) parts.push('Storage')
 	console.log(chalk.green(`✔ Selected: ${parts.join(', ') || 'None'}`))
 
 	// If workflows selected, fetch workflows from backend and prompt multiselect
@@ -295,6 +296,7 @@ printWelcome()
 				language,
 				hasWorkflows: !!choices.workflows,
 				hasDatabase: !!choices.database,
+				hasStorage: !!choices.storage,
 				forceInstall: has('--force-install'),
 			})
 			const codeSamples = await findLanguageSamples(cwd, language)
@@ -450,6 +452,60 @@ printWelcome()
 				console.log(chalk.yellow('Workflows path not proposed; skipping workflows generation.'))
 			}
 
+			// Generate storage code via backend and write into the created storage file
+			const storagePath = (scaffoldPaths || []).find((p) =>
+				/(^|\/)worqhat\/storage\.[a-z]+$/i.test(p),
+			)
+			if (choices.storage && storagePath) {
+				try {
+					const storageSpin = createSpinner('Generating WorqHat storage helpers...')
+					storageSpin.start()
+
+					// Read the generated config file to pass as reference
+					let configFileCode = ''
+					try {
+						const configPath = (scaffoldPaths || []).find((p) =>
+							/(^|\/)worqhat\/config\.[a-z]+$/i.test(p),
+						)
+						if (configPath) {
+							const configFullPath = path.join(cwd, configPath)
+							if (fs.existsSync(configFullPath)) {
+								configFileCode = fs.readFileSync(configFullPath, 'utf8')
+							}
+						}
+					} catch {
+						// Ignore config read errors
+					}
+
+					const storageRes = await fetch(`${baseUrl}/scaffold/storage`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json', 'x-worqhat-api-key': apiKey },
+						body: JSON.stringify({
+							language: language,
+							targetPath: storagePath,
+							configFileCode: configFileCode,
+						}),
+					})
+					if (!storageRes.ok) throw new Error(`HTTP ${storageRes.status}`)
+					const storageBody = (await storageRes.json()) as {
+						ok: boolean
+						path?: string
+						code?: string
+					}
+					if (!storageBody.ok || !storageBody.path || typeof storageBody.code !== 'string') {
+						throw new Error('Invalid response from storage generation')
+					}
+
+					const full = path.join(cwd, storageBody.path)
+					fs.writeFileSync(full, storageBody.code, 'utf8')
+					storageSpin.succeed(`Storage helpers generated at ${storageBody.path}`)
+				} catch (err) {
+					console.error(chalk.red('Storage generation failed:'), err)
+				}
+			} else {
+				console.log(chalk.yellow('Storage path not proposed; skipping storage generation.'))
+			}
+
 			// After generating all files, produce documentation for each created file
 			try {
 				const targets: Array<{ label: string; relPath: string }> = []
@@ -460,10 +516,15 @@ printWelcome()
 				const workflowsRel = (scaffoldPaths || []).find((p) =>
 					/(^|\/)worqhat\/workflows\.[a-z]+$/i.test(p),
 				)
+				const storageRel = (scaffoldPaths || []).find((p) =>
+					/(^|\/)worqhat\/storage\.[a-z]+$/i.test(p),
+				)
 				if (configRel) targets.push({ label: 'config', relPath: configRel })
 				if (choices.database && dbRel) targets.push({ label: 'db', relPath: dbRel })
 				if (choices.workflows && workflowsRel)
 					targets.push({ label: 'workflows', relPath: workflowsRel })
+				if (choices.storage && storageRel)
+					targets.push({ label: 'storage', relPath: storageRel })
 
 				for (const t of targets) {
 					const abs = path.join(cwd, t.relPath)
