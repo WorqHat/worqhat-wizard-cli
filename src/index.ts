@@ -17,7 +17,11 @@ import detectProject, { type DetectResult } from './project-detection'
 import createSpinner from './spinner'
 import { fetchEnvironments, fetchTables } from './tables'
 import { fetchAndSelectWorkflows } from './workflows'
+import { generateStorage } from './storage'
 import { spawnSync } from 'node:child_process'
+
+		const baseUrl = 'https://cli.worqhat.app'
+		// const baseUrl = 'http://localhost:3000'
 
 // Collect up to 2 sample files in the chosen language to guide config generation
 async function findLanguageSamples(
@@ -201,10 +205,15 @@ printWelcome()
 		}
 	}
 
+	// Storage is selected but doesn't need user selection (only one storage helper)
+	if (choices.storage) {
+		console.log(chalk.green('✔ Storage helpers will be generated'))
+	}
+
 	let selectedTableNames: string[] = []
 	if (choices.database) {
 		// First, fetch available environments
-		const { environments: availableEnvironments } = await fetchEnvironments(apiKey)
+		const { environments: availableEnvironments } = await fetchEnvironments(apiKey, baseUrl)
 		if (!availableEnvironments.length) {
 			console.log(chalk.yellow('No environments found or unable to fetch.'))
 		} else {
@@ -239,7 +248,7 @@ printWelcome()
 				fs.appendFileSync(manifest, envSection)
 
 				// Now fetch tables from selected environments
-				const { tables, tableEnvironmentMap } = await fetchTables(apiKey, selectedEnvs)
+				const { tables, tableEnvironmentMap } = await fetchTables(apiKey, selectedEnvs, baseUrl)
 				if (!tables.length) {
 					console.log(chalk.yellow('No tables found in selected environments.'))
 				} else {
@@ -289,7 +298,6 @@ printWelcome()
 	}
 
 	try {
-		const baseUrl = 'https://cli.worqhat.app'
 		const pref = ['typescript', 'javascript', 'python', 'ruby']
 		const lower = langs.map((l) => l.toLowerCase())
 		const chosen = pref.find((p) => lower.includes(p)) || 'javascript'
@@ -303,6 +311,7 @@ printWelcome()
 				currentTree: tree,
 				selectedWorkflows: selectedWorkflowNames,
 				selectedTables: selectedTableNames,
+				hasStorage: choices.storage,
 			}),
 		})
 		if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -506,9 +515,6 @@ printWelcome()
 			)
 			if (choices.storage && storagePath) {
 				try {
-					const storageSpin = createSpinner('Generating WorqHat storage helpers...')
-					storageSpin.start()
-
 					// Read the generated config file to pass as reference
 					let configFileCode = ''
 					try {
@@ -525,33 +531,128 @@ printWelcome()
 						// Ignore config read errors
 					}
 
-					const storageRes = await fetch(`${baseUrl}/scaffold/storage`, {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json', 'x-worqhat-api-key': apiKey },
-						body: JSON.stringify({
-							language: language,
-							targetPath: storagePath,
-							configFileCode: configFileCode,
-						}),
-					})
-					if (!storageRes.ok) throw new Error(`HTTP ${storageRes.status}`)
-					const storageBody = (await storageRes.json()) as {
-						ok: boolean
-						path?: string
-						code?: string
-					}
-					if (!storageBody.ok || !storageBody.path || typeof storageBody.code !== 'string') {
+					const storageResult = await generateStorage(
+						apiKey,
+						language,
+						storagePath,
+						configFileCode,
+						baseUrl,
+					)
+
+					if (storageResult.ok && storageResult.path && storageResult.code) {
+						const full = path.join(cwd, storageResult.path)
+						fs.writeFileSync(full, storageResult.code, 'utf8')
+					} else {
 						throw new Error('Invalid response from storage generation')
 					}
-
-					const full = path.join(cwd, storageBody.path)
-					fs.writeFileSync(full, storageBody.code, 'utf8')
-					storageSpin.succeed(`Storage helpers generated at ${storageBody.path}`)
 				} catch (err) {
 					console.error(chalk.red('Storage generation failed:'), err)
 				}
-			} else {
+			} else if (choices.storage) {
 				console.log(chalk.yellow('Storage path not proposed; skipping storage generation.'))
+			}
+
+			// Validate and fix all generated files
+			try {
+				const validationSpin = createSpinner('Validating generated files for errors...')
+				validationSpin.start()
+
+				const filesToValidate: Array<{ path: string; content: string; language: string }> = []
+
+				// Collect all generated files
+				const configRel = (scaffoldPaths || []).find((p) =>
+					/(^|\/)worqhat\/config\.[a-z]+$/i.test(p),
+				)
+				const dbRel = (scaffoldPaths || []).find((p) => /(^|\/)worqhat\/db\.[a-z]+$/i.test(p))
+				const workflowsRel = (scaffoldPaths || []).find((p) =>
+					/(^|\/)worqhat\/workflows\.[a-z]+$/i.test(p),
+				)
+				const storageRel = (scaffoldPaths || []).find((p) =>
+					/(^|\/)worqhat\/storage\.[a-z]+$/i.test(p),
+				)
+
+				const filePaths = [configRel, dbRel, workflowsRel, storageRel].filter(
+					(p): p is string => !!p,
+				)
+
+				for (const relPath of filePaths) {
+					const fullPath = path.join(cwd, relPath)
+					if (fs.existsSync(fullPath)) {
+						const content = fs.readFileSync(fullPath, 'utf8')
+						filesToValidate.push({
+							path: relPath,
+							content,
+							language: language,
+						})
+					}
+				}
+
+				if (filesToValidate.length > 0) {
+					const validateRes = await fetch(`${baseUrl}/validate-and-fix`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json', 'x-worqhat-api-key': apiKey },
+						body: JSON.stringify({ files: filesToValidate }),
+					})
+
+					if (!validateRes.ok) throw new Error(`HTTP ${validateRes.status}`)
+
+					const validateBody = (await validateRes.json()) as {
+						ok: boolean
+						results?: Array<{
+							path: string
+							fixedContent: string
+							errors: Array<{ message: string }>
+							wasFixed: boolean
+						}>
+						summary?: {
+							total: number
+							fixed: number
+							withErrors: number
+							clean: number
+						}
+					}
+
+					if (!validateBody.ok || !validateBody.results) {
+						throw new Error('Invalid response from validation')
+					}
+
+					// Write fixed files back
+					let fixedCount = 0
+					for (const result of validateBody.results) {
+						if (result.wasFixed) {
+							const fullPath = path.join(cwd, result.path)
+							fs.writeFileSync(fullPath, result.fixedContent, 'utf8')
+							fixedCount++
+						}
+					}
+
+					if (validateBody.summary) {
+						const { clean, fixed, withErrors } = validateBody.summary
+						if (clean === validateBody.summary.total) {
+							validationSpin.succeed('All files validated successfully - no errors found!')
+						} else if (fixed > 0) {
+							validationSpin.succeed(
+								`Validation complete: ${fixed} file(s) auto-fixed, ${withErrors} file(s) still have errors`,
+							)
+							if (withErrors > 0) {
+								console.log(
+									chalk.yellow(
+										'⚠️  Some files still have errors. Check the generated code manually.',
+									),
+								)
+							}
+						} else {
+							validationSpin.fail(`Validation found ${withErrors} file(s) with errors`)
+						}
+					} else {
+						validationSpin.succeed('Validation complete')
+					}
+				} else {
+					validationSpin.succeed('No files to validate')
+				}
+			} catch (err) {
+				console.log(chalk.yellow('⚠️  Validation step failed, continuing...'))
+				console.error(err)
 			}
 
 			// After generating all files, produce documentation for each created file
