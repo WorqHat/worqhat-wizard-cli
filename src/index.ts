@@ -11,7 +11,7 @@ import { ensureApiKey, logout as logoutAuth } from './auth'
 import { buildProjectTree } from './build-tree'
 import { writeScaffoldFiles } from './file-writer'
 import { ensureWizardBranch } from './git'
-import { promptInstallOptions } from './install-options'
+import { promptInstallOptions, type InstallChoices } from './install-options'
 import { type Language, installPackagesForLanguage } from './package-install'
 import detectProject, { type DetectResult } from './project-detection'
 import createSpinner from './spinner'
@@ -121,6 +121,8 @@ printWelcome()
 			'',
 			`${chalk.cyan('--branch-prefix')}\n  Prefix for the new git branch created by the wizard (format: --branch-prefix <prefix> or --branch-prefix=<prefix>)\n  string\n  default: worqhat-wizard`,
 			'',
+			`${chalk.cyan('--all')}\n  Install all available components (workflows, database, storage) without prompting\n  boolean\n  default: false`,
+			'',
 		]
 		console.log(lines.join('\n'))
 		process.exit(0)
@@ -174,8 +176,22 @@ printWelcome()
 	// Ensure API key (prompts if missing)
 	const { apiKey } = await ensureApiKey(secretsFile)
 
-	// Ask user what to install (multi-select)
-	const choices = await promptInstallOptions()
+	// Ask user what to install (multi-select), or use --all to select everything
+	let choices: InstallChoices
+	if (has('--all')) {
+		choices = {
+			workflows: true,
+			database: true,
+			storage: true,
+		}
+		console.log(
+			chalk.green(
+				'✔ --all flag detected: Workflows, Database, and Storage will all be installed.',
+			),
+		)
+	} else {
+		choices = await promptInstallOptions()
+	}
 	const parts: string[] = []
 	if (choices.workflows) parts.push('Workflows')
 	if (choices.database) parts.push('Database')
