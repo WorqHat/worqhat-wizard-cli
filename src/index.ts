@@ -92,6 +92,51 @@ const printWelcome = () => {
 	console.log('│')
 }
 
+// Check if a newer version is available on npm
+async function checkVersionUpdate(currentVersion: string): Promise<void> {
+	try {
+		const res = await fetch('https://registry.npmjs.org/@worqhat/wizard/latest', {
+			headers: { Accept: 'application/json' },
+		})
+		if (!res.ok) return
+
+		const data = (await res.json()) as { version?: string }
+		const latestVersion = data.version
+
+		if (!latestVersion) return
+
+		// Simple version comparison (semver format: x.y.z)
+		const compareVersions = (v1: string, v2: string): number => {
+			const parts1 = v1.split('.').map(Number)
+			const parts2 = v2.split('.').map(Number)
+			for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+				const p1 = parts1[i] || 0
+				const p2 = parts2[i] || 0
+				if (p1 < p2) return -1
+				if (p1 > p2) return 1
+			}
+			return 0
+		}
+
+		if (compareVersions(currentVersion, latestVersion) < 0) {
+			console.log('')
+			console.log(
+				chalk.yellow(
+					`⚠️  A newer version of @worqhat/wizard is available: ${latestVersion} (you have ${currentVersion})`,
+				),
+			)
+			console.log(
+				chalk.dim(
+					`   Run ${chalk.cyan('npm install -g @worqhat/wizard@latest')} to upgrade`,
+				),
+			)
+			console.log('')
+		}
+	} catch {
+		// Silently fail if version check fails (network issues, etc.)
+	}
+}
+
 printWelcome()
 
 // Run immediately on invocation
@@ -133,6 +178,11 @@ printWelcome()
 		console.log(pkg.version)
 		process.exit(0)
 	}
+
+	// Check for version updates (non-blocking)
+	checkVersionUpdate(pkg.version).catch(() => {
+		// Silently ignore errors
+	})
 
 	const cwd = process.cwd()
 	const manifest = path.join(cwd, 'WORQHAT.md')
